@@ -14,29 +14,65 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <script>
-        // Tự động dò tìm đúng đuôi file ảnh (tránh lỗi Windows ẩn đuôi .jpg/.PNG) trước khi dùng ảnh dự phòng
+        // Tự động dò tìm file ảnh ở mọi định dạng hoặc tự lấy ảnh trong repo GitHub
         const photoCandidates = [
-            './image_e4eb6c.jpg',
-            './image_e4eb6c.jpeg',
-            './image_e4eb6c.PNG',
-            './image_e4eb6c.JPG',
-            './image_e4eb6c.png.jpg',
-            './image_e4eb6c.png.png',
-            './image_e4eb6c.webp'
+            'image_e4eb6c.png',
+            'image_e4eb6c.jpg',
+            'image_e4eb6c.jpeg',
+            'image_e4eb6c.PNG',
+            'image_e4eb6c.JPG',
+            'image_e4eb6c.png.jpg',
+            'image_e4eb6c.png.png',
+            'image_e4eb6c.webp',
+            'anh.jpg',
+            'anh.png',
+            'photo.jpg',
+            'photo.png'
         ];
-        let photoCandidateIndex = 0;
+        let photoCandidateIndex = 1;
+        let githubApiChecked = false;
 
-        function handleCandidPhotoError() {
+        async function tryDiscoverGitHubImage(imgEl) {
+            githubApiChecked = true;
+            try {
+                const host = window.location.hostname;
+                if (host.endsWith('.github.io')) {
+                    const owner = host.replace('.github.io', '');
+                    const pathParts = window.location.pathname.split('/').filter(Boolean);
+                    const repo = pathParts.length > 0 ? pathParts[0] : `${owner}.github.io`;
+                    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/`);
+                    if (res.ok) {
+                        const files = await res.json();
+                        const imgFile = files.find(f =>
+                            f.type === 'file' && /\.(png|jpe?g|webp|gif)$/i.test(f.name)
+                        );
+                        if (imgFile && imgFile.download_url) {
+                            imgEl.src = imgFile.download_url;
+                            return true;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('GitHub auto image discovery skipped:', e);
+            }
+            return false;
+        }
+
+        async function handleCandidPhotoError() {
             const imgEl = document.getElementById('friend-photo');
             if (!imgEl) return;
             if (photoCandidateIndex < photoCandidates.length) {
                 imgEl.src = photoCandidates[photoCandidateIndex++];
                 return;
             }
+            if (!githubApiChecked) {
+                const found = await tryDiscoverGitHubImage(imgEl);
+                if (found) return;
+            }
             renderFallbackCandidPhoto();
         }
 
-        // Hàm dự phòng hiển thị ảnh dìm nếu mở trực tiếp mà chưa đặt file ảnh cùng thư mục
+        // Hàm dự phòng hiển thị ảnh dìm nếu chưa có file ảnh nào trên server
         function renderFallbackCandidPhoto() {
             const imgEl = document.getElementById('friend-photo');
             if (!imgEl || imgEl.dataset.fallbackApplied) return;
@@ -312,7 +348,7 @@
                 <div class="w-60 h-64 sm:w-64 sm:h-72 rounded-2xl overflow-hidden bg-slate-900 relative shadow-inner">
                     <img
                         id="friend-photo"
-                        src="./image_e4eb6c.png"
+                        src="image_e4eb6c.png"
                         alt="Ảnh sinh nhật"
                         class="w-full h-full object-cover"
                         onerror="handleCandidPhotoError()"
@@ -573,7 +609,6 @@
 
         // Tạo bộ vân bề mặt vật liệu thật (PBR Bump/Roughness/Diffuse Maps)
         function createRealisticTextures() {
-            // 1. Vân kem bơ đánh bông mịn (Buttercream Swirl Bump)
             const creamC = document.createElement('canvas');
             creamC.width = 512; creamC.height = 512;
             const cg = creamC.getContext('2d');
@@ -594,7 +629,6 @@
             creamBump.wrapS = creamBump.wrapT = THREE.RepeatWrapping;
             creamBump.repeat.set(3, 1);
 
-            // 2. Vân sớ vải nhung (Velvet Micro-Fiber Bump)
             const velvetC = document.createElement('canvas');
             velvetC.width = 256; velvetC.height = 256;
             const vg = velvetC.getContext('2d');
@@ -610,7 +644,6 @@
             velvetBump.wrapS = velvetBump.wrapT = THREE.RepeatWrapping;
             velvetBump.repeat.set(4, 4);
 
-            // 3. Vân dệt lụa satin (Silk Ribbon Weave)
             const silkC = document.createElement('canvas');
             silkC.width = 128; silkC.height = 128;
             const sg = silkC.getContext('2d');
@@ -625,7 +658,6 @@
             silkBump.wrapS = silkBump.wrapT = THREE.RepeatWrapping;
             silkBump.repeat.set(6, 6);
 
-            // 4. Vân vỏ dâu tây với hạt vàng thật (Strawberry Seed Texture)
             const strawC = document.createElement('canvas');
             strawC.width = 256; strawC.height = 256;
             const stg = strawC.getContext('2d');
@@ -650,7 +682,6 @@
             pbrTextures = { creamBump, velvetBump, silkBump, strawMap };
         }
 
-        // Tạo môi trường phản chiếu Studio Softbox thật (PMREM) để vàng kim, đá quý, đĩa sứ có phản chiếu ánh sáng
         function buildStudioEnvironmentMap() {
             const envScene = new THREE.Scene();
             envScene.background = new THREE.Color(0x0b0518);
@@ -666,7 +697,6 @@
                 envScene.add(mesh);
             };
 
-            // Đèn softbox dịu tạo phản chiếu tự nhiên trên bề mặt kim loại & đá quý mà không gây lóa
             addPanel(0xfff1d6, 1.45, 16, 10, 0, 14, 6, Math.PI / 2.4, 0);
             addPanel(0xfbcfe8, 1.15, 12, 14, -14, 7, 8, 0, Math.PI / 3);
             addPanel(0xbae6fd, 1.1, 12, 14, 14, 7, 8, 0, -Math.PI / 3);
@@ -695,7 +725,6 @@
             renderer.toneMapping = THREE.ACESFilmicToneMapping;
             renderer.toneMappingExposure = 0.96;
 
-            // Pipeline hậu kỳ điện ảnh Hollywood (RenderPass + UnrealBloomPass cân bằng HDR)
             if (THREE.EffectComposer && THREE.RenderPass && THREE.UnrealBloomPass) {
                 composer = new THREE.EffectComposer(renderer);
                 const renderPass = new THREE.RenderPass(scene, camera);
@@ -703,9 +732,9 @@
 
                 bloomPass = new THREE.UnrealBloomPass(
                     new THREE.Vector2(window.innerWidth, window.innerHeight),
-                    0.22, // Cường độ quầng sáng dịu nhẹ, tinh tế
-                    0.35, // Bán kính lan tỏa gọn
-                    1.12  // Chỉ các điểm phát sáng cao (lửa nến, đèn LED, đá quý, pháo hoa) mới phát hào quang
+                    0.22,
+                    0.35,
+                    1.12
                 );
                 composer.addPass(bloomPass);
             }
@@ -713,7 +742,6 @@
             createRealisticTextures();
             buildStudioEnvironmentMap();
 
-            // Hệ thống ánh sáng sân khấu đa tầng chuẩn điện ảnh
             const hemiLight = new THREE.HemisphereLight(0xf5d0fe, 0x1e1b4b, 0.68);
             scene.add(hemiLight);
 
@@ -741,7 +769,6 @@
             createGiftBox3D();
             createCrownAndHalos3D();
 
-            // Khởi tạo trạng thái ban đầu
             cakeGroup.visible = false;
             giftGroup.visible = false;
             crownGroup.visible = false;
@@ -755,7 +782,6 @@
             galaxyGroup = new THREE.Group();
             scene.add(galaxyGroup);
 
-            // 1. Dải ngân hà xoắn ốc 3D rực rỡ
             const starCount = 1600;
             const starGeo = new THREE.BufferGeometry();
             const positions = new Float32Array(starCount * 3);
@@ -798,7 +824,6 @@
             });
             galaxyGroup.add(new THREE.Points(starGeo, starMat));
 
-            // 2. Bụi tiên vàng bay lượn quanh sân khấu
             const dustCount = 180;
             const dustGeo = new THREE.BufferGeometry();
             const dustPos = new Float32Array(dustCount * 3);
@@ -818,7 +843,6 @@
             goldDustPoints = new THREE.Points(dustGeo, dustMat);
             scene.add(goldDustPoints);
 
-            // 3. Mặt bàn tiệc tròn sang trọng phủ lụa tối ánh kim & viền vàng
             const stageGeo = new THREE.CylinderGeometry(7.2, 7.6, 0.26, 72);
             const stageMat = new THREE.MeshStandardMaterial({
                 color: 0x160b2e,
@@ -847,7 +871,6 @@
                 scene.add(ring);
             });
 
-            // 4. Luồng đèn sân khấu Volumetric God-Rays quét nhẹ phía sau
             const beamColors = [0xf472b6, 0xfde047, 0x38bdf8];
             beamColors.forEach((bCol, idx) => {
                 const bGeo = new THREE.CylinderGeometry(0.18, 2.6, 18, 32, 1, true);
@@ -908,7 +931,6 @@
             }
         }
 
-        // Tạo bông kem bắt đui sao 10 cánh xoắn ốc hữu cơ (Star-Nozzle Swirl)
         function createPipedCreamSwirl(material, scale = 1.0) {
             const swirlGroup = new THREE.Group();
             const points = [];
@@ -936,7 +958,6 @@
             return swirlGroup;
         }
 
-        // Tạo viền kem sò có khía rãnh thủ công quanh tầng bánh
         function createFlutedCreamShell(material, scale = 1.0) {
             const geo = new THREE.SphereGeometry(0.11 * scale, 20, 14);
             const pos = geo.attributes.position;
@@ -954,11 +975,9 @@
             return shell;
         }
 
-        // Tạo hoa hồng kem bơ 3D cánh lượn hình tim hữu cơ kèm lá xanh
         function createButtercreamRose3D(petalMat, scale = 1.0) {
             const roseGroup = new THREE.Group();
 
-            // Lá hoa hồng xanh bên dưới
             const leafMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.42 });
             const leafShape = new THREE.Shape();
             leafShape.moveTo(0, 0);
@@ -975,13 +994,11 @@
                 roseGroup.add(leaf);
             }
 
-            // Nụ hoa xoắn ốc ở tâm
             const budGeo = new THREE.CylinderGeometry(0.025 * scale, 0.045 * scale, 0.12 * scale, 16);
             const bud = new THREE.Mesh(budGeo, petalMat);
             bud.position.y = 0.075 * scale;
             roseGroup.add(bud);
 
-            // Dựng hình cánh hoa hồng lượn cong tự nhiên
             const petalShape = new THREE.Shape();
             petalShape.moveTo(0, 0);
             petalShape.bezierCurveTo(-0.075, 0.03, -0.085, 0.12, 0, 0.135);
@@ -1032,7 +1049,6 @@
             return roseGroup;
         }
 
-        // Tạo quả dâu tây hữu cơ thuôn tròn tự nhiên với đài lá 5 cánh
         function createOrganicStrawberry3D(strawMat, leafMat, scale = 1.0) {
             const berryGroup = new THREE.Group();
             const points = [];
@@ -1047,7 +1063,6 @@
             berryMesh.castShadow = true;
             berryGroup.add(berryMesh);
 
-            // Đài lá xanh 5 cánh xòe nhẹ trên đỉnh quả dâu
             const sepalShape = new THREE.Shape();
             sepalShape.moveTo(0, 0);
             sepalShape.quadraticCurveTo(0.032, 0.045, 0, 0.11);
@@ -1070,7 +1085,6 @@
             cakeGroup = new THREE.Group();
             scene.add(cakeGroup);
 
-            // Vật liệu sứ trắng cao cấp & vàng lá ăn được
             const porcelainMat = new THREE.MeshPhysicalMaterial({
                 color: 0xffffff,
                 roughness: 0.08,
@@ -1084,7 +1098,6 @@
                 roughness: 0.14
             });
 
-            // 1. Đế sứ chân cao chạm khắc cổ điển (Porcelain Pedestal Cake Stand)
             const pedestalBase = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.38, 0.16, 64), porcelainMat);
             pedestalBase.position.y = 0.04;
             pedestalBase.receiveShadow = true;
@@ -1107,7 +1120,6 @@
             plate.castShadow = true;
             cakeGroup.add(plate);
 
-            // Bóng đổ tiếp xúc mềm dưới chân đế bánh giúp bánh đứng vững chân thực trên mặt bàn
             const shadowC = document.createElement('canvas');
             shadowC.width = 256; shadowC.height = 256;
             const sg = shadowC.getContext('2d');
@@ -1132,7 +1144,6 @@
             plateGoldRimOuter.position.y = 0.48;
             cakeGroup.add(plateGoldRimOuter);
 
-            // Viền ren đăng-ten sứ tinh xảo quanh mép đĩa bánh
             const laceShape = new THREE.Shape();
             laceShape.absarc(0, 0, 0.065, 0, Math.PI, false);
             const laceGeo = new THREE.ExtrudeGeometry(laceShape, { depth: 0.015, bevelEnabled: false });
@@ -1145,7 +1156,6 @@
                 cakeGroup.add(scallop);
             }
 
-            // Vật liệu kem bơ các tầng & socola chảy bóng
             const blushCreamMat = new THREE.MeshPhysicalMaterial({
                 color: 0xfce7f3,
                 roughness: 0.34,
@@ -1202,9 +1212,6 @@
             });
             const leafMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.42 });
 
-            // =====================================================================
-            // TẦNG 1 (ĐẾ LỚN - R = 2.08, H = 1.05) + VÀNG LÁ + VIỀN SÒ + ĐÈN LED
-            // =====================================================================
             const tier1 = new THREE.Mesh(new THREE.CylinderGeometry(2.08, 2.08, 1.05, 72), blushCreamMat);
             tier1.position.y = 1.03;
             tier1.castShadow = true;
@@ -1228,7 +1235,6 @@
                 cakeGroup.add(flake);
             }
 
-            // Viền kem sò thủ công chân tầng 1 + LED pha lê
             const t1ShellCount = 34;
             for (let i = 0; i < t1ShellCount; i++) {
                 const a = (i / t1ShellCount) * Math.PI * 2;
@@ -1246,7 +1252,6 @@
                 }
             }
 
-            // Bánh Macaron Pháp nhiều màu xếp quanh thềm tầng 1
             const macaronColors = [0xf472b6, 0xfbbf24, 0x38bdf8, 0xc084fc, 0x34d399];
             for (let m = 0; m < 10; m++) {
                 const ma = (m / 10) * Math.PI * 2 + 0.15;
@@ -1268,9 +1273,6 @@
                 cakeGroup.add(macGroup);
             }
 
-            // =====================================================================
-            // TẦNG 2 (TRUNG TÂM - R = 1.48, H = 0.94) + SOCOLA CHẢY + HOA HỒNG 3D
-            // =====================================================================
             const tier2 = new THREE.Mesh(new THREE.CylinderGeometry(1.48, 1.48, 0.94, 72), ivoryCreamMat);
             tier2.position.y = 2.02;
             tier2.castShadow = true;
@@ -1294,7 +1296,6 @@
                 cakeGroup.add(dropTip);
             }
 
-            // Viền ngọc trai vàng đôi quanh chân tầng 2
             for (let p = 0; p < 44; p++) {
                 const pa = (p / 44) * Math.PI * 2;
                 const pearl = new THREE.Mesh(new THREE.SphereGeometry(0.046, 14, 14), goldLeafMat);
@@ -1302,7 +1303,6 @@
                 cakeGroup.add(pearl);
             }
 
-            // Cụm hoa hồng kem bơ 3D & quả dâu tây hữu cơ trên thềm tầng 2
             for (let r = 0; r < 6; r++) {
                 const ra = (r / 6) * Math.PI * 2;
                 const rose = createButtercreamRose3D(r % 2 === 0 ? rosePetalPinkMat : rosePetalCreamMat, 0.92);
@@ -1317,9 +1317,6 @@
                 cakeGroup.add(sb);
             }
 
-            // =====================================================================
-            // TẦNG 3 (VƯƠNG MIỆN ĐỈNH BÁNH - R = 0.96, H = 0.78) + BÔNG KEM SAO + DÂU TÂY
-            // =====================================================================
             const tier3 = new THREE.Mesh(new THREE.CylinderGeometry(0.96, 0.96, 0.78, 64), roseSilkCreamMat);
             tier3.position.y = 2.88;
             tier3.castShadow = true;
@@ -1331,7 +1328,6 @@
             tier3GoldBand.position.y = 2.53;
             cakeGroup.add(tier3GoldBand);
 
-            // Bông kem bắt đui sao 10 cánh xoắn ốc + dâu tây tươi quanh đỉnh tầng 3
             const topSwirlCount = 12;
             for (let s = 0; s < topSwirlCount; s++) {
                 const sa = (s / topSwirlCount) * Math.PI * 2;
@@ -1351,7 +1347,6 @@
                 }
             }
 
-            // Cặp nến số 1 và số 8 vàng hồng nghệ thuật trên đỉnh tầng 3
             const candle1 = buildNumber1Candle3D();
             candle1.position.set(-0.34, 3.27, 0.04);
             candle1.rotation.y = 0.08;
@@ -1363,7 +1358,6 @@
             cakeGroup.add(candle8);
         }
 
-        // Dựng nến số 1 đúc khối bo tròn nghệ thuật vát cạnh kim loại vàng
         function buildNumber1Candle3D() {
             const group = new THREE.Group();
 
@@ -1382,7 +1376,6 @@
                 roughness: 0.15
             });
 
-            // Đế cắm nến ánh kim
             const holderCup = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.08, 0.07, 24), goldHolderMat);
             holderCup.position.y = 0.035;
             group.add(holderCup);
@@ -1391,7 +1384,6 @@
             holderPin.position.y = -0.04;
             group.add(holderPin);
 
-            // Hình dáng số 1 serif bo tròn mềm mại
             const s1 = new THREE.Shape();
             s1.moveTo(-0.14, 0.06);
             s1.lineTo(0.14, 0.06);
@@ -1426,7 +1418,6 @@
             return group;
         }
 
-        // Dựng nến số 8 đúc khối bo tròn 2 vòng lồng nghệ thuật vát cạnh vàng hồng
         function buildNumber8Candle3D() {
             const group = new THREE.Group();
 
@@ -1445,7 +1436,6 @@
                 roughness: 0.15
             });
 
-            // Đế cắm nến ánh kim
             const holderCup = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.08, 0.07, 24), goldHolderMat);
             holderCup.position.y = 0.035;
             group.add(holderCup);
@@ -1454,7 +1444,6 @@
             holderPin.position.y = -0.04;
             group.add(holderPin);
 
-            // Hình dáng số 8 mềm mại cân đối (bụng dưới đầy, bụng trên thanh thoát)
             const s8 = new THREE.Shape();
             s8.moveTo(0, 0.06);
             s8.bezierCurveTo(0.18, 0.06, 0.23, 0.18, 0.23, 0.28);
@@ -1466,7 +1455,6 @@
             s8.bezierCurveTo(-0.16, 0.47, -0.23, 0.39, -0.23, 0.28);
             s8.bezierCurveTo(-0.23, 0.18, -0.18, 0.06, 0, 0.06);
 
-            // Khoét 2 lỗ tròn bên trong số 8
             const holeBot = new THREE.Path();
             holeBot.absellipse(0, 0.28, 0.105, 0.115, 0, Math.PI * 2, true, 0);
             s8.holes.push(holeBot);
@@ -1494,7 +1482,6 @@
         }
 
         function attachWickAndFlame(parentGroup, x, y) {
-            // Tim nến bện sợi màu than
             const wick = new THREE.Mesh(
                 new THREE.CylinderGeometry(0.011, 0.014, 0.11, 10),
                 new THREE.MeshStandardMaterial({ color: 0x1c1917, roughness: 0.9 })
@@ -1505,7 +1492,6 @@
             const flameGroup = new THREE.Group();
             flameGroup.position.set(x, y + 0.08, 0);
 
-            // Tạo hình dáng giọt lửa hữu cơ thuôn nhọn (LatheGeometry)
             const buildTeardropFlame = (rx, height) => {
                 const pts = [];
                 for (let i = 0; i <= 20; i++) {
@@ -1516,7 +1502,6 @@
                 return new THREE.LatheGeometry(pts, 20);
             };
 
-            // 1. Chân lửa xanh lam đặc trưng của sáp cháy ở đáy tim nến
             const blueBase = new THREE.Mesh(
                 new THREE.SphereGeometry(0.036, 14, 14),
                 new THREE.MeshBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.85 })
@@ -1525,13 +1510,11 @@
             blueBase.position.y = 0.025;
             flameGroup.add(blueBase);
 
-            // 2. Lõi lửa trắng vàng rực sáng
             const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
             const coreMesh = new THREE.Mesh(buildTeardropFlame(0.038, 0.17), coreMat);
             coreMesh.position.y = 0.025;
             flameGroup.add(coreMesh);
 
-            // 3. Quầng lửa vàng cam chuyển sắc ấm áp
             const midMat = new THREE.MeshBasicMaterial({
                 color: 0xfbbf24,
                 transparent: true,
@@ -1543,7 +1526,6 @@
             midMesh.position.y = 0.015;
             flameGroup.add(midMesh);
 
-            // 4. Hào quang cam đỏ mềm mại bao ngoài
             const outerMat = new THREE.MeshBasicMaterial({
                 color: 0xf97316,
                 transparent: true,
@@ -1557,14 +1539,12 @@
             parentGroup.add(flameGroup);
             candleFlames.push(flameGroup);
 
-            // Ánh sáng điểm phản chiếu lên kem bơ & dâu tây xung quanh
             const ptLight = new THREE.PointLight(0xffb74d, 1.55, 6.5);
             ptLight.position.set(x, y + 0.34, 0.16);
             parentGroup.add(ptLight);
             candleLights.push(ptLight);
         }
 
-        // Hiệu ứng luồng gió 3D khi thổi nến
         function spawnWindStream3D() {
             const geo = new THREE.CylinderGeometry(0.008, 0.015, 0.45, 6);
             geo.rotateX(Math.PI / 2);
@@ -1605,9 +1585,8 @@
             giftGroup = new THREE.Group();
             scene.add(giftGroup);
 
-            // Vật liệu nhung đỏ thẫm có sớ vải thật (Velvet Material)
             const boxMat = new THREE.MeshPhysicalMaterial({
-                color: 0xdbeafe,
+                color: 0xbe123c,
                 roughness: 0.48,
                 metalness: 0.08,
                 bumpMap: pbrTextures.velvetBump,
@@ -1615,9 +1594,7 @@
                 sheen: new THREE.Color(0xfb7185),
                 sheenRoughness: 0.52
             });
-            boxMat.color.setHex(0xbe123c);
 
-            // Lòng hộp nhung đen tuyền tạo chiều sâu hút mắt khi mở nắp
             const innerBlackMat = new THREE.MeshStandardMaterial({
                 color: 0x050508,
                 roughness: 0.95,
@@ -1628,7 +1605,6 @@
                 metalness: 0.92,
                 roughness: 0.16
             });
-            // Ruy-băng lụa vàng kim có vân dệt satin
             const ribbonMat = new THREE.MeshPhysicalMaterial({
                 color: 0xf59e0b,
                 metalness: 0.58,
@@ -1639,20 +1615,17 @@
                 clearcoatRoughness: 0.18
             });
 
-            // 1. Thân hộp quà rỗng lòng đen sâu với viền chỉ vàng sang trọng
             const boxSize = 2.46;
             const boxHeight = 1.92;
             const wallThick = 0.11;
             const halfB = boxSize / 2;
 
-            // Đáy và 4 thành ngoài của thân hộp quà rỗng
             const bottomWall = new THREE.Mesh(new THREE.BoxGeometry(boxSize, wallThick, boxSize), boxMat);
             bottomWall.position.y = wallThick / 2;
             bottomWall.castShadow = true;
             bottomWall.receiveShadow = true;
             giftGroup.add(bottomWall);
 
-            // Bóng đổ tiếp xúc mềm dưới đáy hộp quà nhung đỏ
             const gShadowC = document.createElement('canvas');
             gShadowC.width = 256; gShadowC.height = 256;
             const gsg = gShadowC.getContext('2d');
@@ -1690,7 +1663,6 @@
             rightWall.castShadow = true;
             giftGroup.add(rightWall);
 
-            // Lớp lót nhung đen tuyền bên trong 5 mặt lòng hộp
             const innerSize = boxSize - wallThick * 2 - 0.004;
             const innerHeight = boxHeight - wallThick;
             const innerBottom = new THREE.Mesh(new THREE.PlaneGeometry(innerSize, innerSize), innerBlackMat);
@@ -1711,7 +1683,6 @@
                 giftGroup.add(plane);
             });
 
-            // Khung viền vàng mạ tinh xảo ở chân đế, miệng hộp & 4 góc đứng
             const rimCoords = [
                 [0, 0.025, halfB + 0.005, boxSize + 0.04, 0.05, 0.03],
                 [0, 0.025, -halfB - 0.005, boxSize + 0.04, 0.05, 0.03],
@@ -1728,14 +1699,12 @@
                 giftGroup.add(m);
             });
 
-            // 4 thanh nẹp góc vàng đứng
             [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz]) => {
                 const corner = new THREE.Mesh(new THREE.BoxGeometry(0.032, boxHeight, 0.032), goldTrimMat);
                 corner.position.set(sx * halfB, boxHeight / 2, sz * halfB);
                 giftGroup.add(corner);
             });
 
-            // 4 dải ruy-băng bọc sát mặt ngoài hộp (không che lòng đen bên trong)
             const ribW = 0.38;
             const ribT = 0.028;
             const sideRibbons = [
@@ -1750,7 +1719,6 @@
                 giftGroup.add(rMesh);
             });
 
-            // Luồng hào quang vàng dịu nhẹ bên trong lòng hộp (tắt dần khi mở thiệp)
             const beamGeo = new THREE.CylinderGeometry(1.45, 0.9, 3.8, 32, 1, true);
             const beamMat = new THREE.MeshBasicMaterial({
                 color: 0xfde047,
@@ -1764,9 +1732,6 @@
             lightBeamMesh.position.y = 2.4;
             giftGroup.add(lightBeamMesh);
 
-            // =====================================================================
-            // TẤM THIỆP GIẤY MỸ THUẬT 3D THẬT NẰM TRONG HỘP QUÀ & LẬT MỞ KHI MỞ HỘP
-            // =====================================================================
             card3DGroup = new THREE.Group();
             card3DGroup.position.set(0, 0.95, 0);
             card3DGroup.scale.set(0.55, 0.55, 0.55);
@@ -1777,7 +1742,6 @@
             const cardH = 2.25;
             const cardThick = 0.022;
 
-            // Vật liệu giấy mỹ thuật mờ chống chói lóa để đọc chữ rõ nét tuyệt đối
             const paperMat = new THREE.MeshStandardMaterial({
                 color: 0xfffbeb,
                 roughness: 0.92,
@@ -1789,7 +1753,6 @@
                 metalness: 0.08
             });
 
-            // Canvas trang trong của tấm thiệp: "Chúc Bảo Trân sinh nhật vui vẻ! 🎂🥳🎉✨🎈 - Từ: pthinh"
             const insideCanvas = document.createElement('canvas');
             insideCanvas.width = 768;
             insideCanvas.height = 1024;
@@ -1802,7 +1765,6 @@
             ig.fillStyle = pGrad;
             ig.fillRect(0, 0, 768, 1024);
 
-            // Khung viền vàng 2 lớp ép kim tinh tế
             ig.strokeStyle = '#d97706';
             ig.lineWidth = 10;
             ig.strokeRect(38, 38, 692, 948);
@@ -1810,7 +1772,6 @@
             ig.lineWidth = 3;
             ig.strokeRect(54, 54, 660, 916);
 
-            // Hoa văn góc ép kim
             [[54, 54], [714, 54], [54, 970], [714, 970]].forEach(([cx, cy]) => {
                 ig.fillStyle = '#f59e0b';
                 ig.beginPath(); ig.arc(cx, cy, 14, 0, Math.PI * 2); ig.fill();
@@ -1839,7 +1800,6 @@
             const insideTex = new THREE.CanvasTexture(insideCanvas);
             insideTex.anisotropy = 8;
 
-            // Nửa phải (trang chính chứa lời chúc)
             const rightPage = new THREE.Mesh(new THREE.BoxGeometry(cardW, cardH, cardThick), paperMat);
             rightPage.position.set(cardW / 2, 0, 0);
             rightPage.castShadow = true;
@@ -1852,7 +1812,6 @@
             rightTextPlane.position.set(cardW / 2, 0, cardThick / 2 + 0.002);
             card3DGroup.add(rightTextPlane);
 
-            // Canvas bìa ngoài của tấm thiệp (nhung đỏ viền vàng + bánh kem)
             const frontCanvas = document.createElement('canvas');
             frontCanvas.width = 512;
             frontCanvas.height = 680;
@@ -1871,7 +1830,6 @@
             fg.fillText('🎂', 256, 370);
             const frontTex = new THREE.CanvasTexture(frontCanvas);
 
-            // Nửa trái (bìa gập lật mở 3D quanh gáy cardW = 0)
             cardFrontCoverGroup = new THREE.Group();
             cardFrontCoverGroup.position.set(0, 0, cardThick);
             card3DGroup.add(cardFrontCoverGroup);
@@ -1888,7 +1846,6 @@
             frontArtPlane.position.set(cardW / 2, 0, cardThick / 2 + 0.002);
             cardFrontCoverGroup.add(frontArtPlane);
 
-            // Mặt trong của bìa trái
             const innerLeftPlane = new THREE.Mesh(
                 new THREE.PlaneGeometry(cardW - 0.04, cardH - 0.04),
                 paperMat
@@ -1897,7 +1854,6 @@
             innerLeftPlane.position.set(cardW / 2, 0, -cardThick / 2 - 0.002);
             cardFrontCoverGroup.add(innerLeftPlane);
 
-            // Vòng bụi vàng lấp lánh bay xoắn quanh tấm thiệp 3D khi mở ra
             const sparkGeo = new THREE.OctahedronGeometry(0.032, 0);
             const sparkMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
             for (let sp = 0; sp < 34; sp++) {
@@ -1914,7 +1870,6 @@
                 });
             }
 
-            // 2. Nắp hộp quà rỗng lòng đen đồng nhất với thân hộp bên dưới
             giftLidGroup = new THREE.Group();
             giftLidGroup.position.set(0, boxHeight - 0.14, -1.32);
             giftGroup.add(giftLidGroup);
@@ -1925,13 +1880,11 @@
             const lidTopThick = 0.10;
             const halfLid = lidW / 2;
 
-            // Đỉnh nắp trên cùng
             const lidTopCap = new THREE.Mesh(new THREE.BoxGeometry(lidW, lidTopThick, lidW), boxMat);
             lidTopCap.position.set(0, lidH - lidTopThick / 2, 1.32);
             lidTopCap.castShadow = true;
             giftLidGroup.add(lidTopCap);
 
-            // 4 thành vách ngoài của nắp hộp
             const sideWallH = lidH - lidTopThick;
             const sideWallY = sideWallH / 2;
             const lidSideWalls = [
@@ -1947,7 +1900,6 @@
                 giftLidGroup.add(m);
             });
 
-            // Khoang lót nhung đen tuyền bên trong nắp hộp (đồng nhất 100% với thân hộp bên dưới)
             const lidInnerSpan = lidW - lidWallThick * 2 - 0.004;
             const lidInnerCeiling = new THREE.Mesh(new THREE.PlaneGeometry(lidInnerSpan, lidInnerSpan), innerBlackMat);
             lidInnerCeiling.rotation.x = Math.PI / 2;
@@ -1967,7 +1919,6 @@
                 giftLidGroup.add(p);
             });
 
-            // Khung viền vàng mạ 4 cạnh mép dưới và mép trên nắp hộp (không che khoang rỗng)
             const lidRimBars = [
                 [0, 0.02, 1.32 + halfLid + 0.004, lidW + 0.02, 0.04, 0.025],
                 [0, 0.02, 1.32 - halfLid - 0.004, lidW + 0.02, 0.04, 0.025],
@@ -1984,7 +1935,6 @@
                 giftLidGroup.add(bar);
             });
 
-            // 6 dải ruy-băng lụa ôm sát mặt trên và 4 mặt ngoài nắp hộp (giữ lòng trong hoàn toàn trống)
             const lidRibbonStrips = [
                 { pos: [0, lidH + 0.014, 1.32], size: [0.40, 0.028, lidW + 0.04] },
                 { pos: [0, lidH + 0.015, 1.32], size: [lidW + 0.04, 0.028, 0.40] },
@@ -1999,17 +1949,14 @@
                 giftLidGroup.add(strip);
             });
 
-            // Chiếc nơ lụa cao cấp nhiều tầng cánh phồng kèm dải đuôi nơ rủ trên đỉnh nắp hộp
             const luxuryBow = createLuxuryGiftBow3D(ribbonMat);
             luxuryBow.position.set(0, lidH + 0.02, 1.32);
             giftLidGroup.add(luxuryBow);
         }
 
-        // Dựng chiếc nơ lụa Couture 12 cánh 4 tầng kèm ổ đá quý Ruby & Kim cương
         function createLuxuryGiftBow3D(baseRibbonMat) {
             const bowGroup = new THREE.Group();
 
-            // Hai sắc độ lụa vàng kim sang trọng (vàng champagne & vàng ròng ánh kim)
             const silkGoldMat = baseRibbonMat.clone();
             silkGoldMat.color.setHex(0xfbbf24);
             silkGoldMat.emissive = new THREE.Color(0x92400e);
@@ -2026,7 +1973,6 @@
                 roughness: 0.1
             });
 
-            // Hình dáng cánh nơ giọt nước bo tròn phồng bồng bềnh
             const buildPetalGeometry = (length, width, thickness) => {
                 const shape = new THREE.Shape();
                 shape.moveTo(0, 0);
@@ -2063,7 +2009,6 @@
             const tier3Geo = buildPetalGeometry(0.50, 0.28, 0.05);
             const tier4Geo = buildPetalGeometry(0.34, 0.20, 0.045);
 
-            // Tầng 1: 4 cánh đế xòe rộng ôm mặt nắp hộp
             [0.36, Math.PI - 0.36, Math.PI + 0.36, -0.36].forEach((angle, idx) => {
                 const p = new THREE.Mesh(tier1Geo, idx % 2 === 0 ? silkGoldMat : champagneSilkMat);
                 p.position.y = 0.05;
@@ -2075,7 +2020,6 @@
                 bowGroup.add(holder);
             });
 
-            // Tầng 2: 4 cánh chữ thập vươn cao bồng bềnh
             [0, Math.PI / 2, Math.PI, -Math.PI / 2].forEach((angle, idx) => {
                 const p = new THREE.Mesh(tier2Geo, idx % 2 === 0 ? champagneSilkMat : silkGoldMat);
                 p.position.y = 0.11;
@@ -2087,7 +2031,6 @@
                 bowGroup.add(holder);
             });
 
-            // Tầng 3: 4 cánh chéo nâng phồng trung tâm
             [Math.PI / 4, (3 * Math.PI) / 4, (5 * Math.PI) / 4, (7 * Math.PI) / 4].forEach(angle => {
                 const p = new THREE.Mesh(tier3Geo, silkGoldMat);
                 p.position.y = 0.16;
@@ -2099,7 +2042,6 @@
                 bowGroup.add(holder);
             });
 
-            // Tầng 4: 2 cánh nhỏ ôm sát ổ đá quý trên đỉnh
             [0, Math.PI].forEach(angle => {
                 const p = new THREE.Mesh(tier4Geo, champagneSilkMat);
                 p.position.y = 0.21;
@@ -2110,7 +2052,6 @@
                 bowGroup.add(holder);
             });
 
-            // Đai thắt nút lụa xếp lớp 3 vòng
             [-0.08, 0, 0.08].forEach((ox, idx) => {
                 const band = new THREE.Mesh(
                     new THREE.TorusGeometry(0.16 - Math.abs(ox) * 0.15, 0.048, 16, 36),
@@ -2122,7 +2063,6 @@
                 bowGroup.add(band);
             });
 
-            // Ổ đá quý Hoàng Gia ở tâm nơ: Ruby hồng bao quanh bởi 12 viên kim cương trắng
             const bezelRing = new THREE.Mesh(new THREE.TorusGeometry(0.115, 0.018, 14, 36), goldSettingMat);
             bezelRing.rotation.x = Math.PI / 2;
             bezelRing.position.y = 0.285;
@@ -2157,7 +2097,6 @@
                 bowGroup.add(diamond);
             }
 
-            // Hai dải đuôi ruy-băng lụa uốn lượn mềm mại cắt đuôi cá rủ trên mặt nắp hộp
             [-1, 1].forEach(side => {
                 const tailShape = new THREE.Shape();
                 tailShape.moveTo(0, -0.09);
@@ -2231,7 +2170,6 @@
                 crownGroup.add(gem);
             }
 
-            // Vòng hào quang năng lượng 3D xoay quanh vương miện
             haloRingsGroup = new THREE.Group();
             crownGroup.add(haloRingsGroup);
 
@@ -2250,9 +2188,6 @@
             haloRingsGroup.add(h2);
         }
 
-        /* =========================================================================
-           3. PHÁO HOA 3D ĐA TẦNG & MƯA KIM TUYẾN 3D
-           ========================================================================= */
         function launchFirework3D(originPos) {
             const colors = [0xff4d94, 0xfacc15, 0x38bdf8, 0xc084fc, 0x4ade80, 0xfb923c];
             const color = colors[Math.floor(Math.random() * colors.length)];
@@ -2282,7 +2217,6 @@
                     twinklePhase: Math.random() * Math.PI * 2
                 });
 
-                // Thêm vệt đuôi ánh sáng kéo dài cho các tia pháo hoa chính
                 if (i % 3 === 0) {
                     const tMat = new THREE.MeshBasicMaterial({
                         color,
@@ -2330,9 +2264,6 @@
             }
         }
 
-        /* =========================================================================
-           4. ĐIỀU PHỐI CHUYỂN CẢNH ĐIỆN ẢNH & TƯƠNG TÁC THỔI NẾN / KÉO NƠ
-           ========================================================================= */
         let currentStage = 'intro';
         let blowProgress = 0;
         let isHoldingBlow = false;
@@ -2382,7 +2313,6 @@
                 source.connect(micAnalyser);
                 micDataArray = new Uint8Array(micAnalyser.frequencyBinCount);
             } catch (e) {
-                // Dự phòng khi trình duyệt chặn mic
             }
         }
 
@@ -2402,7 +2332,6 @@
             if (currentStage !== 'cake' || candlesExtinguished) return;
 
             let micBlowDetected = false;
-            // Đợi 0.8s sau khi vào cảnh bánh kem và lọc ngưỡng cao hơn tiếng nhạc nền để tránh tự tắt nến
             if (micAnalyser && micDataArray && performance.now() - cakeSceneEnteredAt > 800) {
                 micAnalyser.getByteFrequencyData(micDataArray);
                 let sum = 0;
@@ -2455,7 +2384,6 @@
             setTimeout(() => launchFirework3D(new THREE.Vector3(2.3, 4.7, -1.2)), 260);
             setTimeout(() => launchFirework3D(new THREE.Vector3(0, 5.2, -2.0)), 520);
 
-            // Chuyển thẳng sang Hộp Quà 3D sau hiệu ứng chúc mừng mà không cần nhấn gì thêm
             setTimeout(() => {
                 transitionToGiftBox3D();
             }, 2300);
@@ -2474,7 +2402,6 @@
             setActiveHud('hud-gift');
         }
 
-        // Kéo nơ ruy-băng mở nắp hộp quà 3D
         function initRibbonDrag() {
             const track = document.getElementById('ribbon-track');
             const knob = document.getElementById('ribbon-knob');
@@ -2538,7 +2465,6 @@
             playMagicFanfare();
             launchFirework3D(new THREE.Vector3(0, 4.3, 0));
 
-            // Đưa góc nhìn ngang tầm hộp quà để thấy rõ tấm thiệp 3D từ từ bay ra và lật mở
             orbitYaw = 0;
             orbitPitch = 0;
             targetCamPos.set(0, 3.3, 6.2);
@@ -2569,7 +2495,6 @@
             setActiveHud('hud-reveal');
         }
 
-        // Cho phép kéo chuột / ngón tay xoay ngắm thế giới 3D từ mọi góc độ
         function setupInteractions() {
             initRibbonDrag();
             const canvas = document.getElementById('world-3d');
@@ -2591,7 +2516,6 @@
             const onUp = (x, y) => {
                 if (isPointerDown && currentStage !== 'intro') {
                     const dist = Math.hypot(x - downPos.x, y - downPos.y);
-                    // Chạm nhẹ vào khoảng không 3D để bắn thêm pháo hoa chúc mừng
                     if (dist < 8) {
                         const nx = (x / window.innerWidth) * 2 - 1;
                         const ny = -(y / window.innerHeight) * 2 + 1;
@@ -2630,9 +2554,6 @@
             if (composer) composer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        /* =========================================================================
-           5. VÒNG LẶP RENDER 60FPS & HIỆU ỨNG VẬT LÝ 3D
-           ========================================================================= */
         const clock = new THREE.Clock();
 
         function animate3D() {
@@ -2659,7 +2580,6 @@
                 if (!isPointerDown) cakeGroup.rotation.y = Math.sin(t * 0.45) * 0.22;
             }
 
-            // Chuyển động ngọn lửa nến 3D hữu cơ & dải đèn LED trên bánh kem
             candleFlames.forEach((f, idx) => {
                 if (!f.visible) return;
                 const flicker = Math.sin(t * 21 + idx * 3.1) * 0.075 + Math.cos(t * 33 + idx) * 0.04;
@@ -2676,7 +2596,6 @@
                 led.mesh.scale.setScalar(pulse);
             });
 
-            // Hiệu ứng mở nắp hộp quà 3D & Tấm thiệp 3D từ từ bay ra lật mở trước mặt
             if (giftLidOpening && giftLidAnimProgress < 1) {
                 giftLidAnimProgress = Math.min(1, giftLidAnimProgress + 0.022);
                 const ease = 1 - Math.pow(1 - giftLidAnimProgress, 3);
@@ -2695,21 +2614,17 @@
                 card3DRevealProgress = Math.min(1, card3DRevealProgress + 0.011);
                 const cEase = 1 - Math.pow(1 - card3DRevealProgress, 3);
 
-                // Tấm thiệp từ từ bay lên từ lòng hộp và tiến ra phía trước mặt người nhận
                 card3DGroup.position.y = 1.1 + cEase * 1.65 + Math.sin(t * 2.2) * 0.04 * cEase;
                 card3DGroup.position.z = cEase * 1.55;
                 card3DGroup.scale.setScalar(0.55 + cEase * 0.55);
 
-                // Bìa trái tấm thiệp từ từ lật mở 3D ra phía sau để lộ lời chúc rõ nét
                 if (cardFrontCoverGroup && cEase > 0.32) {
                     const openProgress = Math.min(1, (cEase - 0.32) / 0.68);
                     const openEase = 1 - Math.pow(1 - openProgress, 3);
                     cardFrontCoverGroup.rotation.y = -openEase * (Math.PI * 0.86);
-                    // Căn giữa trang thiệp chữ sau khi bìa mở ra
                     card3DGroup.position.x = -0.45 * openEase;
                 }
 
-                // Bụi vàng lấp lánh bay xoắn quanh tấm thiệp 3D
                 cardOrbitSparks.forEach(s => {
                     s.mesh.visible = true;
                     s.angle += s.speed * 0.016;
@@ -2723,7 +2638,6 @@
                 });
             }
 
-            // Vương miện vàng & hào quang 3D xoay ở màn quà cuối
             if (crownGroup && crownGroup.visible) {
                 crownGroup.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1);
                 crownGroup.rotation.y += 0.018;
@@ -2734,7 +2648,6 @@
                 }
             }
 
-            // Ngân hà, bóng bay & luồng đèn sân khấu
             if (galaxyGroup) galaxyGroup.rotation.y = t * 0.025;
             if (goldDustPoints) goldDustPoints.rotation.y = -t * 0.05;
 
@@ -2747,7 +2660,6 @@
                 b.mesh.rotation.z = Math.sin(t * 0.8 + b.phase) * 0.08;
             });
 
-            // Cập nhật luồng gió thổi nến 3D
             for (let i = windParticles3D.length - 1; i >= 0; i--) {
                 const w = windParticles3D[i];
                 w.mesh.position.z += w.vz;
@@ -2759,7 +2671,6 @@
                 }
             }
 
-            // Cập nhật khói nến 3D
             for (let i = smokeParticles3D.length - 1; i >= 0; i--) {
                 const p = smokeParticles3D[i];
                 p.mesh.position.x += p.vx;
@@ -2774,7 +2685,6 @@
                 }
             }
 
-            // Cập nhật pháo hoa 3D & tàn lửa nhấp nháy
             for (let i = fireworkParticles3D.length - 1; i >= 0; i--) {
                 const fw = fireworkParticles3D[i];
                 fw.mesh.position.x += fw.vx;
@@ -2792,7 +2702,6 @@
                 }
             }
 
-            // Cập nhật vệt đuôi pháo hoa 3D
             for (let i = fireworkTrails3D.length - 1; i >= 0; i--) {
                 const tr = fireworkTrails3D[i];
                 tr.mesh.position.x += tr.vx * 0.92;
@@ -2808,7 +2717,6 @@
                 }
             }
 
-            // Cập nhật kim tuyến rơi
             for (let i = confetti3D.length - 1; i >= 0; i--) {
                 const c = confetti3D[i];
                 c.mesh.position.y += c.vy;
@@ -2820,7 +2728,6 @@
                 }
             }
 
-            // Di chuyển camera điện ảnh mượt mà + nhịp thở máy quay thực tế (Handheld Cinema Breathing)
             const radius = Math.hypot(targetCamPos.x, targetCamPos.z);
             const cinemaBreathX = Math.sin(t * 0.55) * 0.14;
             const cinemaBreathY = Math.cos(t * 0.72) * 0.08;
