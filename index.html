@@ -14,6 +14,28 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <script>
+        // Tự động dò tìm đúng đuôi file ảnh (tránh lỗi Windows ẩn đuôi .jpg/.PNG) trước khi dùng ảnh dự phòng
+        const photoCandidates = [
+            './image_e4eb6c.jpg',
+            './image_e4eb6c.jpeg',
+            './image_e4eb6c.PNG',
+            './image_e4eb6c.JPG',
+            './image_e4eb6c.png.jpg',
+            './image_e4eb6c.png.png',
+            './image_e4eb6c.webp'
+        ];
+        let photoCandidateIndex = 0;
+
+        function handleCandidPhotoError() {
+            const imgEl = document.getElementById('friend-photo');
+            if (!imgEl) return;
+            if (photoCandidateIndex < photoCandidates.length) {
+                imgEl.src = photoCandidates[photoCandidateIndex++];
+                return;
+            }
+            renderFallbackCandidPhoto();
+        }
+
         // Hàm dự phòng hiển thị ảnh dìm nếu mở trực tiếp mà chưa đặt file ảnh cùng thư mục
         function renderFallbackCandidPhoto() {
             const imgEl = document.getElementById('friend-photo');
@@ -293,7 +315,7 @@
                         src="./image_e4eb6c.png"
                         alt="Ảnh sinh nhật"
                         class="w-full h-full object-cover"
-                        onerror="renderFallbackCandidPhoto()"
+                        onerror="handleCandidPhotoError()"
                     />
                 </div>
             </div>
